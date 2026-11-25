@@ -47,3 +47,10 @@ class ApplicationRead(ApplicationBase):
     id: int
     created_at: datetime
     updated_at: datetime
+
+
+class ApplicationList(BaseModel):
+    items: list[ApplicationRead]
+    total: int
+    limit: int
+    offset: int
