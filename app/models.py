@@ -25,7 +25,7 @@ class Application(Base):
         default=ApplicationStatus.applied,
         index=True,
     )
-    job_url: Mapped[str | None] = mapped_column(String(2048))
+    job_url: Mapped[str | None] = mapped_column(String(2083))
     applied_date: Mapped[date]
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
