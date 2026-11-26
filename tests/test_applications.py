@@ -55,7 +55,7 @@ def test_get_application_returns_it(client: TestClient) -> None:
 
     response = client.get(f"/applications/{created['id']}")
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     assert response.json() == created
 
 
