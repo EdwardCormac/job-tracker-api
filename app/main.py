@@ -1,6 +1,4 @@
 import logging
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
@@ -10,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app import crud
 from app.config import get_settings
-from app.database import Base, engine, get_db
+from app.database import get_db
 from app.models import Application, ApplicationStatus
 from app.schemas import (
     ApplicationCreate,
@@ -25,13 +23,7 @@ logger = logging.getLogger(__name__)
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Application not found"}}
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    Base.metadata.create_all(bind=engine)  # Temporary: replaced by Alembic migrations on Day 2.
-    yield
-
-
-app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
+app = FastAPI(title=get_settings().app_name)
 
 
 @app.exception_handler(OperationalError)
