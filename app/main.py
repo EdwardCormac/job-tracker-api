@@ -1,15 +1,28 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app import crud
 from app.config import get_settings
 from app.database import Base, engine, get_db
 from app.models import Application, ApplicationStatus
-from app.schemas import ApplicationCreate, ApplicationList, ApplicationRead, ApplicationUpdate
+from app.schemas import (
+    ApplicationCreate,
+    ApplicationList,
+    ApplicationRead,
+    ApplicationUpdate,
+    ErrorResponse,
+)
+
+logger = logging.getLogger(__name__)
+
+NOT_FOUND = {404: {"model": ErrorResponse, "description": "Application not found"}}
 
 
 @asynccontextmanager
@@ -19,6 +32,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title=get_settings().app_name, lifespan=lifespan)
+
+
+@app.exception_handler(OperationalError)
+async def database_unavailable_handler(request: Request, exc: OperationalError) -> JSONResponse:
+    logger.error("Database error on %s %s", request.method, request.url.path, exc_info=exc)
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Database unavailable, please try again later"},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error"},
+    )
+
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -52,16 +83,20 @@ def list_applications(
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
-@app.get("/applications/{application_id}", response_model=ApplicationRead)
+@app.get("/applications/{application_id}", response_model=ApplicationRead, responses=NOT_FOUND)
 def get_application(application: ApplicationDep) -> Application:
     return application
 
 
-@app.patch("/applications/{application_id}", response_model=ApplicationRead)
+@app.patch("/applications/{application_id}", response_model=ApplicationRead, responses=NOT_FOUND)
 def update_application(data: ApplicationUpdate, application: ApplicationDep, db: DbSession) -> Application:
     return crud.update_application(db, application, data)
 
 
-@app.delete("/applications/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+@app.delete(
+    "/applications/{application_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=NOT_FOUND,
+)
 def delete_application(application: ApplicationDep, db: DbSession) -> None:
     crud.delete_application(db, application)

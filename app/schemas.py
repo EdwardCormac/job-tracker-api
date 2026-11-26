@@ -54,3 +54,7 @@ class ApplicationList(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class ErrorResponse(BaseModel):
+    detail: str
