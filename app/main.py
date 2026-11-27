@@ -1,4 +1,6 @@
 import logging
+import time
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
@@ -10,6 +12,7 @@ from sqlalchemy.orm import Session
 from app import crud
 from app.config import get_settings
 from app.database import get_db
+from app.logging_config import configure_logging
 from app.models import Application, ApplicationStatus
 from app.schemas import (
     ApplicationCreate,
@@ -21,12 +24,46 @@ from app.schemas import (
     ReadinessResponse,
 )
 
+settings = get_settings()
+configure_logging(settings.log_level)
+
 logger = logging.getLogger(__name__)
+request_logger = logging.getLogger("app.request")
+
+QUIET_PATHS = {"/health/live", "/health/ready", "/favicon.ico"}
 
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Application not found"}}
 
 
-app = FastAPI(title=get_settings().app_name)
+app = FastAPI(title=settings.app_name)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    start = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        level = logging.DEBUG if request.url.path in QUIET_PATHS else logging.INFO
+        request_logger.log(
+            level,
+            "%s %s %s",
+            request.method,
+            request.url.path,
+            status_code,
+            extra={
+                "fields": {
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": status_code,
+                    "duration_ms": duration_ms,
+                }
+            },
+        )
 
 
 @app.exception_handler(OperationalError)
@@ -60,6 +97,11 @@ def get_application_or_404(application_id: int, db: DbSession) -> Application:
 
 
 ApplicationDep = Annotated[Application, Depends(get_application_or_404)]
+
+
+@app.get("/favicon.ico", status_code=status.HTTP_204_NO_CONTENT, include_in_schema=False)
+def favicon() -> None:
+    return None
 
 
 @app.get("/health/live", response_model=LivenessResponse, tags=["health"])

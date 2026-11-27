@@ -84,13 +84,14 @@ tests/            PyTest suite and fixtures
 - **PATCH is a true partial update.** Only fields present in the request are changed;
   sending `null` clears optional fields but is rejected for required ones.
 - **Status is enforced twice:** by Pydantic at the API boundary and by a database `CHECK` constraint.
+- **Structured JSON logs.** Every log line is a single JSON object (timestamp, level, logger, message).
+  Each request is logged with method, path, status code and duration, with health checks at DEBUG to avoid probe noise.
 - **The container runs as a non-root user** and starts uvicorn with `exec`, so `docker stop` shuts it down gracefully.
 
 ## Roadmap
 
 Planned, not yet built:
 
-- Structured logging
 - Prometheus metrics and a Grafana dashboard
 - Running the test suite against PostgreSQL in CI
 - Optional: JWT authentication and status-change history

@@ -39,6 +39,13 @@ def test_readiness_returns_ok_when_database_reachable(client: TestClient) -> Non
     assert response.json() == {"status": "ok", "database": "ok"}
 
 
+def test_favicon_returns_no_content(client: TestClient) -> None:
+    response = client.get("/favicon.ico")
+
+    assert response.status_code == 204
+    assert response.content == b""
+
+
 def test_readiness_returns_503_when_database_unreachable(client: TestClient) -> None:
     app.dependency_overrides[get_db] = unreachable_db
 
