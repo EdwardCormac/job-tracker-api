@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from app import crud
 from app.config import get_settings
 from app.database import get_db
 from app.logging_config import configure_logging
+from app.metrics import REQUEST_DURATION, REQUESTS
 from app.models import Application, ApplicationStatus
 from app.schemas import (
     ApplicationCreate,
@@ -30,7 +32,7 @@ configure_logging(settings.log_level)
 logger = logging.getLogger(__name__)
 request_logger = logging.getLogger("app.request")
 
-QUIET_PATHS = {"/health/live", "/health/ready", "/favicon.ico"}
+QUIET_PATHS = {"/health/live", "/health/ready", "/favicon.ico", "/metrics"}
 
 NOT_FOUND = {404: {"model": ErrorResponse, "description": "Application not found"}}
 
@@ -39,7 +41,7 @@ app = FastAPI(title=settings.app_name)
 
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+async def observe_requests(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     start = time.perf_counter()
     status_code = 500
     try:
@@ -47,7 +49,11 @@ async def log_requests(request: Request, call_next: Callable[[Request], Awaitabl
         status_code = response.status_code
         return response
     finally:
-        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        duration = time.perf_counter() - start
+        route = getattr(request.scope.get("route"), "path", "unmatched")
+        REQUESTS.labels(method=request.method, route=route, status_code=str(status_code)).inc()
+        REQUEST_DURATION.labels(method=request.method, route=route).observe(duration)
+
         level = logging.DEBUG if request.url.path in QUIET_PATHS else logging.INFO
         request_logger.log(
             level,
@@ -60,7 +66,7 @@ async def log_requests(request: Request, call_next: Callable[[Request], Awaitabl
                     "method": request.method,
                     "path": request.url.path,
                     "status_code": status_code,
-                    "duration_ms": duration_ms,
+                    "duration_ms": round(duration * 1000, 2),
                 }
             },
         )
@@ -102,6 +108,11 @@ ApplicationDep = Annotated[Application, Depends(get_application_or_404)]
 @app.get("/favicon.ico", status_code=status.HTTP_204_NO_CONTENT, include_in_schema=False)
 def favicon() -> None:
     return None
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/health/live", response_model=LivenessResponse, tags=["health"])

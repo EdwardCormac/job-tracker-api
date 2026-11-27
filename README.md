@@ -86,12 +86,14 @@ tests/            PyTest suite and fixtures
 - **Status is enforced twice:** by Pydantic at the API boundary and by a database `CHECK` constraint.
 - **Structured JSON logs.** Every log line is a single JSON object (timestamp, level, logger, message).
   Each request is logged with method, path, status code and duration, with health checks at DEBUG to avoid probe noise.
+- **Prometheus metrics at `/metrics`.** Request count by method, route and status, plus a latency histogram.
+  Labels use the route template (e.g. `/applications/{application_id}`) so the number of series stays bounded.
 - **The container runs as a non-root user** and starts uvicorn with `exec`, so `docker stop` shuts it down gracefully.
 
 ## Roadmap
 
 Planned, not yet built:
 
-- Prometheus metrics and a Grafana dashboard
+- Grafana dashboard, with Prometheus scraping `/metrics`
 - Running the test suite against PostgreSQL in CI
 - Optional: JWT authentication and status-change history
