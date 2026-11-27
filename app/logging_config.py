@@ -17,7 +17,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(entry, default=str)
 
 
-def configure_logging(level: str) -> None:
+def configure_logging(level: str, sql_echo: bool = False) -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
 
@@ -30,3 +30,6 @@ def configure_logging(level: str) -> None:
         uvicorn_logger.handlers = []
         uvicorn_logger.propagate = True
     logging.getLogger("uvicorn.access").disabled = True
+
+    if sql_echo:
+        logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
