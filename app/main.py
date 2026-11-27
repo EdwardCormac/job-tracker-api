@@ -27,7 +27,7 @@ from app.schemas import (
 )
 
 settings = get_settings()
-configure_logging(settings.log_level)
+configure_logging(settings.log_level, sql_echo=settings.sql_echo)
 
 logger = logging.getLogger(__name__)
 request_logger = logging.getLogger("app.request")
@@ -54,7 +54,12 @@ async def observe_requests(request: Request, call_next: Callable[[Request], Awai
         REQUESTS.labels(method=request.method, route=route, status_code=str(status_code)).inc()
         REQUEST_DURATION.labels(method=request.method, route=route).observe(duration)
 
-        level = logging.DEBUG if request.url.path in QUIET_PATHS else logging.INFO
+        if request.url.path in QUIET_PATHS:
+            level = logging.DEBUG
+        elif status_code >= 500:
+            level = logging.WARNING
+        else:
+            level = logging.INFO
         request_logger.log(
             level,
             "%s %s %s",
@@ -136,12 +141,17 @@ def readiness(db: DbSession, response: Response) -> dict:
     return {"status": "ok", "database": "ok"}
 
 
-@app.post("/applications", response_model=ApplicationRead, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/applications",
+    response_model=ApplicationRead,
+    status_code=status.HTTP_201_CREATED,
+    tags=["applications"],
+)
 def create_application(data: ApplicationCreate, db: DbSession) -> Application:
     return crud.create_application(db, data)
 
 
-@app.get("/applications", response_model=ApplicationList)
+@app.get("/applications", response_model=ApplicationList, tags=["applications"])
 def list_applications(
     db: DbSession,
     status_filter: Annotated[ApplicationStatus | None, Query(alias="status")] = None,
@@ -152,12 +162,22 @@ def list_applications(
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
-@app.get("/applications/{application_id}", response_model=ApplicationRead, responses=NOT_FOUND)
+@app.get(
+    "/applications/{application_id}",
+    response_model=ApplicationRead,
+    responses=NOT_FOUND,
+    tags=["applications"],
+)
 def get_application(application: ApplicationDep) -> Application:
     return application
 
 
-@app.patch("/applications/{application_id}", response_model=ApplicationRead, responses=NOT_FOUND)
+@app.patch(
+    "/applications/{application_id}",
+    response_model=ApplicationRead,
+    responses=NOT_FOUND,
+    tags=["applications"],
+)
 def update_application(data: ApplicationUpdate, application: ApplicationDep, db: DbSession) -> Application:
     return crud.update_application(db, application, data)
 
@@ -166,6 +186,7 @@ def update_application(data: ApplicationUpdate, application: ApplicationDep, db:
     "/applications/{application_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses=NOT_FOUND,
+    tags=["applications"],
 )
 def delete_application(application: ApplicationDep, db: DbSession) -> None:
     crud.delete_application(db, application)

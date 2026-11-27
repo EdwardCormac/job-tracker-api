@@ -80,4 +80,5 @@ def test_unhandled_error_is_logged_as_500(client: TestClient, caplog: pytest.Log
     TestClient(app, raise_server_exceptions=False).get("/applications")
 
     [record] = request_records(caplog)
+    assert record.levelno == logging.WARNING
     assert getattr(record, "fields")["status_code"] == 500
