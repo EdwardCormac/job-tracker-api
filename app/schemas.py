@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, PlainSerializer, model_validator
 
@@ -58,3 +58,12 @@ class ApplicationList(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class LivenessResponse(BaseModel):
+    status: Literal["ok"]
+
+
+class ReadinessResponse(BaseModel):
+    status: Literal["ok", "unavailable"]
+    database: Literal["ok", "unreachable"]

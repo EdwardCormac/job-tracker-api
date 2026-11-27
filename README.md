@@ -24,6 +24,8 @@ filter by status and page through results.
 | `GET` | `/applications/{id}` | Get one application | `200` |
 | `PATCH` | `/applications/{id}` | Update only the fields you send | `200` |
 | `DELETE` | `/applications/{id}` | Delete an application | `204` |
+| `GET` | `/health/live` | Liveness: the process is up (no dependencies checked) | `200` |
+| `GET` | `/health/ready` | Readiness: runs `SELECT 1` against the database; `503` if unreachable | `200` |
 
 Errors return JSON with a `detail` field: `404` for an unknown id, `422` for invalid input,
 `503` when the database is unreachable, and `500` (without internal details) for anything unexpected.
@@ -88,7 +90,6 @@ tests/            PyTest suite and fixtures
 
 Planned, not yet built:
 
-- `/health` readiness endpoint
 - Structured logging
 - Prometheus metrics and a Grafana dashboard
 - Running the test suite against PostgreSQL in CI

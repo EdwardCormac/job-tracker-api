@@ -1,9 +1,10 @@
 import logging
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import crud
@@ -16,6 +17,8 @@ from app.schemas import (
     ApplicationRead,
     ApplicationUpdate,
     ErrorResponse,
+    LivenessResponse,
+    ReadinessResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -57,6 +60,27 @@ def get_application_or_404(application_id: int, db: DbSession) -> Application:
 
 
 ApplicationDep = Annotated[Application, Depends(get_application_or_404)]
+
+
+@app.get("/health/live", response_model=LivenessResponse, tags=["health"])
+def liveness() -> dict:
+    return {"status": "ok"}
+
+
+@app.get(
+    "/health/ready",
+    response_model=ReadinessResponse,
+    responses={503: {"model": ReadinessResponse, "description": "Database unreachable"}},
+    tags=["health"],
+)
+def readiness(db: DbSession, response: Response) -> dict:
+    try:
+        db.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        logger.warning("Readiness check failed: database unreachable", exc_info=True)
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "unavailable", "database": "unreachable"}
+    return {"status": "ok", "database": "ok"}
 
 
 @app.post("/applications", response_model=ApplicationRead, status_code=status.HTTP_201_CREATED)
