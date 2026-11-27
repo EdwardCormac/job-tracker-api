@@ -38,9 +38,21 @@ Interactive docs are at `/docs` once the API is running.
 docker compose up --build
 ```
 
-This starts PostgreSQL 17 and the API. The API waits for Postgres to pass its healthcheck,
+This starts PostgreSQL 17, the API, Prometheus and Grafana. The API waits for Postgres to pass its healthcheck,
 applies migrations (`alembic upgrade head`), then serves on http://localhost:8000.
-Data is stored in a named volume, so it survives restarts; `docker compose down -v` deletes it.
+Its own healthcheck calls `/health/ready`, so `docker compose ps` shows whether it can reach the database.
+Data is stored in named volumes, so it survives restarts; `docker compose down -v` deletes it.
+
+## Monitoring
+
+- **Prometheus** (http://localhost:9090) scrapes the API's `/metrics` endpoint every 5 seconds.
+- **Grafana** (http://localhost:3000, login `admin` / `admin`) starts with the Prometheus datasource and the
+  **Job Tracker API** dashboard already provisioned from `monitoring/grafana/`. No manual setup needed.
+
+Dashboard panels: API up, requests in the last hour, 5xx error rate, request rate by route and p95 latency by route.
+Health checks, `/metrics` scrapes and favicon requests are excluded from the traffic panels.
+
+![Grafana dashboard for the Job Tracker API](docs/grafana-dashboard.png)
 
 ## Running locally
 
@@ -94,6 +106,5 @@ tests/            PyTest suite and fixtures
 
 Planned, not yet built:
 
-- Grafana dashboard, with Prometheus scraping `/metrics`
 - Running the test suite against PostgreSQL in CI
 - Optional: JWT authentication and status-change history
